@@ -4,7 +4,9 @@ pipeline {
         booleanParam(name: 'autoApprove', defaultValue: false, description: 'Automatically run apply after generating plan?')
     } 
 
-   agent  any
+   agent {
+        label 'Built-In Node'
+    }  
     stages {
         stage('checkout') {
             steps {
