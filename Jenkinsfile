@@ -8,10 +8,11 @@ pipeline {
     stages {
         stage('checkout') {
             steps {
-                 script 
-                        {
+                 script {
+                        dir('terraform') {
                             git "https://github.com/Ashish-Dalvi/Jenkins-terraform-cicd.git"
                         }
+                 }
                 }
             }
 
