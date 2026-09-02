@@ -18,8 +18,8 @@ pipeline {
         stage('Plan') {
             steps {
                 sh 'pwd; terraform/; terraform init'
-                sh "pwd;terraform/; terraform plan -out tfplan"
-                sh 'pwd;terraform/; terraform show -no-color tfplan > tfplan.txt'
+                sh "pwd; terraform/; terraform plan -out tfplan"
+                sh 'pwd; terraform/; terraform show -no-color tfplan > tfplan.txt'
             }
         }
         stage('Approval') {
