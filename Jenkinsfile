@@ -1,50 +1,152 @@
 pipeline {
 
     parameters {
-        booleanParam(name: 'autoApprove', defaultValue: false, description: 'Automatically run apply after generating plan?')
+        booleanParam(
+            name: 'autoApprove',
+            defaultValue: false,
+            description: 'Automatically run apply after generating plan?'
+        )
+
+        booleanParam(
+            name: 'DESTROY',
+            defaultValue: false,
+            description: 'Destroy Terraform infrastructure instead of deploying?'
+        )
     }
 
-   agent  any
+    agent any
+
     stages {
-        stage('checkout') {
+
+        stage('Checkout') {
             steps {
-                 script{
-                        dir("terraform")
-                        {
-                            git "https://github.com/Ashish-Dalvi/Jenkins-terraform-cicd.git"
-                        }
+                script {
+                    dir("terraform") {
+                        git "https://github.com/Ashish-Dalvi/Jenkins-terraform-cicd.git"
                     }
                 }
             }
+        }
 
-        stage('Plan') {
+        stage('Terraform Init') {
             steps {
-                sh 'pwd;cd terraform/ ; terraform init'
-                sh "pwd;cd terraform/ ; terraform plan -out tfplan"
-                sh 'pwd;cd terraform/ ; terraform show -no-color tfplan > tfplan.txt'
+                sh '''
+                    cd terraform
+                    terraform init
+                '''
             }
         }
-        stage('Approval') {
-           when {
-               not {
-                   equals expected: true, actual: params.autoApprove
-               }
-           }
 
-           steps {
-               script {
+        stage('Plan') {
+            when {
+                expression {
+                    !params.DESTROY
+                }
+            }
+
+            steps {
+                sh '''
+                    cd terraform
+                    terraform plan -out tfplan
+                    terraform show -no-color tfplan > tfplan.txt
+                '''
+            }
+        }
+
+        stage('Approval - Apply') {
+            when {
+                expression {
+                    !params.DESTROY && !params.autoApprove
+                }
+            }
+
+            steps {
+                script {
                     def plan = readFile 'terraform/tfplan.txt'
-                    input message: "Do you want to apply the plan?",
-                    parameters: [text(name: 'Plan', description: 'Please review the plan', defaultValue: plan)]
-               }
-           }
-       }
+
+                    input(
+                        message: "Do you want to apply the Terraform plan?",
+                        parameters: [
+                            text(
+                                name: 'Plan',
+                                description: 'Please review the plan',
+                                defaultValue: plan
+                            )
+                        ]
+                    )
+                }
+            }
+        }
 
         stage('Apply') {
+            when {
+                expression {
+                    !params.DESTROY
+                }
+            }
+
             steps {
-                sh "pwd;cd terraform/ ; terraform destroy -input=false tfplan"
+                sh '''
+                    cd terraform
+                    terraform apply -input=false tfplan
+                '''
+            }
+        }
+
+        stage('Destroy Plan') {
+            when {
+                expression {
+                    params.DESTROY
+                }
+            }
+
+            steps {
+                sh '''
+                    cd terraform
+                    terraform plan -destroy -out destroy.tfplan
+                    terraform show -no-color destroy.tfplan > destroy-plan.txt
+                '''
+            }
+        }
+
+        stage('Destroy Approval') {
+            when {
+                expression {
+                    params.DESTROY
+                }
+            }
+
+            steps {
+                script {
+                    def destroyPlan = readFile 'terraform/destroy-plan.txt'
+
+                    input(
+                        message: "⚠️ WARNING: Do you want to DESTROY all Terraform resources?",
+                        parameters: [
+                            text(
+                                name: 'DestroyPlan',
+                                description: 'Review the resources that will be destroyed',
+                                defaultValue: destroyPlan
+                            )
+                        ]
+                    )
+                }
+            }
+        }
+
+        stage('Destroy') {
+            when {
+                expression {
+                    params.DESTROY
+                }
+            }
+
+            steps {
+                sh '''
+                    cd terraform
+                    terraform apply -input=false destroy.tfplan
+                '''
             }
         }
     }
-
-  }
+}
